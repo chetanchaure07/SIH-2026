@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 
+export { ForecastChart } from './ForecastChart';
+
 // ---- Energy History Chart ----------------------------------
 
 interface EnergyHistoryChartProps {
