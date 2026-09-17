@@ -40,10 +40,10 @@ export function Header() {
           <span className="text-slate-600 hidden lg:block">{format(now, 'dd MMM yyyy')}</span>
         </div>
 
-        {/* Data freshness */}
+        {/* Demo mode indicator */}
         <div className="hidden md:flex items-center gap-1.5 text-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden="true" />
-          <span className="text-emerald-500 font-medium">Data live</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" aria-hidden="true" />
+          <span className="text-amber-500 font-medium">Demo Mode</span>
         </div>
       </div>
 

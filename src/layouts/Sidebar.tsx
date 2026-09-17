@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Zap, TrendingUp, Battery, Fuel, Settings2,
+  LayoutDashboard, Zap, TrendingUp, Battery, Fuel,
   Wind, Brain, FlaskConical, Bell, Wrench, CloudSnow,
   BarChart3, FileText, HeartPulse, Settings, ChevronLeft,
   ChevronRight, Gauge, Layers, Shield
@@ -15,36 +15,47 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   group?: string;
-  badge?: () => number;
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Overview', icon: <LayoutDashboard size={18} />, group: 'OPERATIONS' },
-  { path: '/forecast', label: 'Forecast', icon: <TrendingUp size={18} />, group: 'OPERATIONS' },
-  { path: '/generation', label: 'Generation', icon: <Zap size={18} />, group: 'OPERATIONS' },
-  { path: '/battery', label: 'Battery & Storage', icon: <Battery size={18} />, group: 'OPERATIONS' },
-  { path: '/fuel', label: 'Fuel Management', icon: <Fuel size={18} />, group: 'OPERATIONS' },
-  { path: '/generators', label: 'Generators', icon: <Gauge size={18} />, group: 'OPERATIONS' },
-  { path: '/loads', label: 'Load Management', icon: <Layers size={18} />, group: 'OPERATIONS' },
-  { path: '/renewables', label: 'Renewables', icon: <Wind size={18} />, group: 'OPERATIONS' },
+  // Dashboard
+  { path: '/', label: 'Dashboard', icon: <LayoutDashboard size={18} />, group: 'MAIN' },
+
+  // Energy
+  { path: '/generation', label: 'Energy Generation', icon: <Zap size={18} />, group: 'ENERGY' },
+  { path: '/renewables', label: 'Solar & Wind', icon: <Wind size={18} />, group: 'ENERGY' },
+  { path: '/battery', label: 'Battery Storage', icon: <Battery size={18} />, group: 'ENERGY' },
+  { path: '/loads', label: 'Power Consumption', icon: <Layers size={18} />, group: 'ENERGY' },
+
+  // Backup
+  { path: '/fuel', label: 'Backup Fuel', icon: <Fuel size={18} />, group: 'BACKUP' },
+  { path: '/generators', label: 'Generators', icon: <Gauge size={18} />, group: 'BACKUP' },
+
+  // Forecast & AI
+  { path: '/forecast', label: 'Energy Forecast', icon: <TrendingUp size={18} />, group: 'AI' },
   { path: '/ai', label: 'AI Recommendations', icon: <Brain size={18} />, group: 'AI' },
-  { path: '/scenarios', label: 'Scenarios', icon: <FlaskConical size={18} />, group: 'AI' },
-  { path: '/alerts', label: 'Alerts', icon: <Bell size={18} />, group: 'MONITORING', badge: undefined },
-  { path: '/maintenance', label: 'Maintenance', icon: <Wrench size={18} />, group: 'MONITORING' },
+  { path: '/scenarios', label: 'What-If Scenarios', icon: <FlaskConical size={18} />, group: 'AI' },
+
+  // Monitoring
+  { path: '/alerts', label: 'Alerts', icon: <Bell size={18} />, group: 'MONITORING' },
   { path: '/weather', label: 'Weather', icon: <CloudSnow size={18} />, group: 'MONITORING' },
+
+  // Reports & System
   { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} />, group: 'REPORTS' },
   { path: '/reports', label: 'Reports', icon: <FileText size={18} />, group: 'REPORTS' },
-  { path: '/health', label: 'System Health', icon: <HeartPulse size={18} />, group: 'SYSTEM' },
-  { path: '/settings', label: 'Settings', icon: <Settings size={18} />, group: 'SYSTEM' },
+  { path: '/maintenance', label: 'Maintenance', icon: <Wrench size={18} />, group: 'REPORTS' },
+  { path: '/health', label: 'System Health', icon: <HeartPulse size={18} />, group: 'REPORTS' },
+  { path: '/settings', label: 'Settings', icon: <Settings size={18} />, group: 'REPORTS' },
 ];
 
-const groupOrder = ['OPERATIONS', 'AI', 'MONITORING', 'REPORTS', 'SYSTEM'];
+const groupOrder = ['MAIN', 'ENERGY', 'BACKUP', 'AI', 'MONITORING', 'REPORTS'];
 const groupLabels: Record<string, string> = {
-  OPERATIONS: 'Operations',
-  AI: 'AI & Scenarios',
+  MAIN: 'Overview',
+  ENERGY: 'Energy',
+  BACKUP: 'Backup Power',
+  AI: 'Forecast & AI',
   MONITORING: 'Monitoring',
-  REPORTS: 'Analytics',
-  SYSTEM: 'System',
+  REPORTS: 'Reports & System',
 };
 
 export function Sidebar() {

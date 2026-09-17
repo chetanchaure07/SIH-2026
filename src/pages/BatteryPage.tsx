@@ -1,61 +1,79 @@
-import React, { useMemo } from 'react';
-import { Battery as BatteryIcon, Thermometer, Zap, AlertTriangle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Battery as BatteryIcon, Thermometer, Zap, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useBatteryData, useBatterySOCTimeline } from '@/hooks';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Badge, StatusBadge, ProgressBar, DataRow, Skeleton } from '@/components/ui';
-import { SOCChart, Sparkline } from '@/charts';
+import { SOCChart } from '@/charts';
 import { KPICard } from '@/components/ui/KPICard';
 import { riskLevel, formatMWh, formatPct } from '@/utils/calculations';
-import { format } from 'date-fns';
 
 export default function BatteryPage() {
   const { data: battery, loading } = useBatteryData();
   const { data: timeline } = useBatterySOCTimeline();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const batteryStatus = useMemo(() => {
     if (!battery) return 'NORMAL' as const;
     return riskLevel(battery.socPercent, 40, 25, 15, true);
   }, [battery]);
 
-  const tempColor = useMemo(() => {
-    if (!battery) return 'cyan';
-    if (battery.temperatureCelsius < -10) return 'red';
-    if (battery.temperatureCelsius < -5) return 'amber';
-    return 'cyan';
-  }, [battery]);
-
-  const sparkData = useMemo(() => timeline?.map((p) => p.socPercent) ?? [], [timeline]);
+  const statusMessage: Record<string, string> = {
+    NORMAL: 'Battery is in good condition',
+    WATCH: 'Battery level is getting low — monitor closely',
+    WARNING: 'Battery level is low — consider charging',
+    CRITICAL: 'Battery level is critically low — immediate action required',
+  };
 
   return (
     <div className="p-5 space-y-5 max-w-[1200px]">
       <div>
-        <h1 className="text-lg font-bold text-slate-100">Battery & Energy Storage</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Lithium-ion storage bank — 20 MWh capacity</p>
+        <h1 className="text-lg font-bold text-slate-100">Battery Storage</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Lithium-ion storage bank — 20 MWh total capacity</p>
       </div>
 
-      {/* KPI Row */}
+      {/* Key Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {loading ? (
-          Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
         ) : battery ? (
           <>
-            <KPICard title="State of Charge" value={battery.socPercent.toFixed(1)} unit="%" status={batteryStatus} icon={<BatteryIcon size={16} />} />
-            <KPICard title="State of Health" value={battery.sohPercent.toFixed(1)} unit="%" icon={<BatteryIcon size={16} />} status={battery.sohPercent < 80 ? 'WARNING' : 'NORMAL'} />
-            <KPICard title="Available Energy" value={formatMWh(battery.availableEnergyMWh)} subtitle={`of ${formatMWh(battery.usableCapacityMWh)} usable`} />
-            <KPICard title="Current Power" value={battery.currentPowerMW.toFixed(2)} unit="MW" subtitle={battery.mode} status={battery.mode === 'FAULT' ? 'CRITICAL' : 'NORMAL'} />
-            <KPICard title="Temperature" value={battery.temperatureCelsius.toFixed(1)} unit="°C" warning={battery.temperatureCelsius < -8 ? 'Near lower thermal limit (-10°C)' : undefined} icon={<Thermometer size={16} />} />
-            <KPICard title="Charge Rate" value={battery.chargeRateMW.toFixed(1)} unit="MW max" />
-            <KPICard title="Discharge Rate" value={battery.dischargeRateMW.toFixed(1)} unit="MW max" />
-            <KPICard title="Cycle Count" value={battery.cycleCount} subtitle="Total charge/discharge cycles" />
+            <KPICard
+              title="Battery Level"
+              value={battery.socPercent.toFixed(0)}
+              unit="%"
+              status={batteryStatus}
+              icon={<BatteryIcon size={16} />}
+              subtitle={statusMessage[batteryStatus]}
+            />
+            <KPICard
+              title="Battery Health"
+              value={battery.sohPercent.toFixed(0)}
+              unit="%"
+              icon={<BatteryIcon size={16} />}
+              status={battery.sohPercent < 80 ? 'WARNING' : 'NORMAL'}
+              subtitle={battery.sohPercent >= 80 ? 'Good condition' : 'Health degraded'}
+            />
+            <KPICard
+              title="Energy Stored"
+              value={battery.availableEnergyMWh.toFixed(1)}
+              unit="MWh"
+              subtitle={`of ${battery.usableCapacityMWh.toFixed(1)} MWh usable`}
+            />
+            <KPICard
+              title="Current Mode"
+              value={battery.mode}
+              subtitle={battery.currentPowerMW >= 0 ? `Charging at ${battery.currentPowerMW.toFixed(2)} MW` : `Discharging at ${Math.abs(battery.currentPowerMW).toFixed(2)} MW`}
+              status={battery.mode === 'FAULT' ? 'CRITICAL' : 'NORMAL'}
+            />
           </>
         ) : null}
       </div>
 
       {/* SOC gauge + Timeline */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* SOC Large Display */}
+        {/* SOC Visual */}
         <Card>
-          <CardHeader title="State of Charge" icon={<BatteryIcon size={15} />} />
+          <CardHeader title="Battery Level" icon={<BatteryIcon size={15} />} />
           {battery ? (
             <div className="flex flex-col items-center gap-4 py-2">
               <div className="relative w-32 h-32 flex items-center justify-center">
@@ -71,15 +89,15 @@ export default function BatteryPage() {
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-2xl font-bold font-mono text-slate-100">{battery.socPercent.toFixed(0)}%</span>
-                  <span className="text-[10px] text-slate-500">SOC</span>
+                  <span className="text-[10px] text-slate-500">Charged</span>
                 </div>
               </div>
+              <StatusBadge status={batteryStatus} />
               <div className="w-full space-y-2">
-                <DataRow label="Available energy" value={`${battery.availableEnergyMWh.toFixed(1)} MWh`} />
+                <DataRow label="Energy available" value={`${battery.availableEnergyMWh.toFixed(1)} MWh`} />
                 <DataRow label="Mode" value={battery.mode} mono={false} />
-                <DataRow label="Power" value={`${battery.currentPowerMW.toFixed(2)} MW`} />
                 <DataRow label="Temperature" value={`${battery.temperatureCelsius.toFixed(1)}°C`} />
-                <DataRow label="Estimated runtime" value={`${battery.estimatedRuntimeHours.toFixed(0)}h`} />
+                <DataRow label="Est. runtime" value={`${battery.estimatedRuntimeHours.toFixed(0)} hours`} />
               </div>
             </div>
           ) : <Skeleton className="h-64 rounded-xl" />}
@@ -88,8 +106,8 @@ export default function BatteryPage() {
         {/* SOC Timeline */}
         <Card className="md:col-span-2">
           <CardHeader
-            title="SOC Timeline"
-            subtitle="Last 12h (actual) + Next 12h (forecast)"
+            title="Battery Level Over Time"
+            subtitle="Last 12h (historical) + Next 12h (forecast)"
             icon={<Zap size={15} />}
           />
           <div className="mb-3 flex items-center gap-4 text-xs">
@@ -112,49 +130,71 @@ export default function BatteryPage() {
               <p className="font-mono font-bold text-slate-300">73.0%</p>
             </div>
             <div className="bg-slate-900/50 border border-slate-800/40 rounded-lg p-2 text-center">
-              <p className="text-slate-500">Reserve Min</p>
+              <p className="text-slate-500">Minimum Safe</p>
               <p className="font-mono font-bold text-amber-400">35.0%</p>
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Health Details */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader title="Battery Specifications" icon={<BatteryIcon size={15} />} />
-          {battery ? (
-            <div className="space-y-0">
-              <DataRow label="Total capacity" value={`${battery.capacityMWh.toFixed(1)} MWh`} />
-              <DataRow label="Usable capacity" value={`${battery.usableCapacityMWh.toFixed(1)} MWh`} />
-              <DataRow label="State of health" value={`${battery.sohPercent.toFixed(1)}%`} />
-              <DataRow label="Max charge rate" value={`${battery.chargeRateMW.toFixed(1)} MW`} />
-              <DataRow label="Max discharge rate" value={`${battery.dischargeRateMW.toFixed(1)} MW`} />
-              <DataRow label="Total cycles" value={battery.cycleCount.toString()} />
-              <DataRow label="Operating temp." value={`${battery.temperatureCelsius.toFixed(1)}°C`} />
+      {/* Recommendations */}
+      <Card>
+        <CardHeader title="Recommendations" icon={<AlertTriangle size={15} />} />
+        <div className="space-y-2">
+          {battery?.temperatureCelsius < -8 && (
+            <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 text-xs">
+              <p className="font-semibold text-amber-400 mb-1">⚠️ Temperature Warning</p>
+              <p className="text-slate-400">Battery temperature ({battery.temperatureCelsius.toFixed(1)}°C) is near the lower operating limit. Consider activating thermal management.</p>
             </div>
-          ) : <Skeleton className="h-40" />}
-        </Card>
+          )}
+          <div className="bg-blue-500/8 border border-blue-500/20 rounded-lg p-3 text-xs">
+            <p className="font-semibold text-blue-400 mb-1">🌨️ Pre-Storm Preparation</p>
+            <p className="text-slate-400">AI recommends charging battery to ≥85% before the Sept 18 blizzard. Current plan achieves 68% by that time.</p>
+          </div>
+          <div className="bg-slate-900/50 border border-slate-800/40 rounded-lg p-3 text-xs">
+            <p className="font-semibold text-slate-300 mb-1">🔋 Minimum Reserve</p>
+            <p className="text-slate-400">Keep battery above 35% at all times to ensure critical systems can run during a generator outage.</p>
+          </div>
+        </div>
+      </Card>
 
-        <Card>
-          <CardHeader title="Recommendations" icon={<AlertTriangle size={15} />} />
-          <div className="space-y-2">
-            {battery?.temperatureCelsius < -8 && (
-              <div className="bg-amber-500/10 border border-amber-500/25 rounded-lg p-3 text-xs">
-                <p className="font-semibold text-amber-400 mb-1">Temperature Warning</p>
-                <p className="text-slate-400">Battery temperature {battery.temperatureCelsius.toFixed(1)}°C is near the lower operating limit of -10°C. Consider activating thermal management.</p>
+      {/* Advanced Details (collapsed by default) */}
+      <div className="border border-slate-800/60 rounded-xl overflow-hidden">
+        <button
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-900/30 hover:bg-slate-800/30 transition-colors"
+          aria-expanded={showAdvanced}
+        >
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Advanced Technical Details
+          </span>
+          {showAdvanced ? <ChevronUp size={14} className="text-slate-500" /> : <ChevronDown size={14} className="text-slate-500" />}
+        </button>
+        {showAdvanced && battery && (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mb-2">Battery Specifications</p>
+              <div className="space-y-0">
+                <DataRow label="Total capacity" value={`${battery.capacityMWh.toFixed(1)} MWh`} />
+                <DataRow label="Usable capacity" value={`${battery.usableCapacityMWh.toFixed(1)} MWh`} />
+                <DataRow label="State of health" value={`${battery.sohPercent.toFixed(1)}%`} />
+                <DataRow label="Max charge rate" value={`${battery.chargeRateMW.toFixed(1)} MW`} />
+                <DataRow label="Max discharge rate" value={`${battery.dischargeRateMW.toFixed(1)} MW`} />
+                <DataRow label="Total cycles" value={battery.cycleCount.toString()} />
+                <DataRow label="Operating temp." value={`${battery.temperatureCelsius.toFixed(1)}°C`} />
               </div>
-            )}
-            <div className="bg-blue-500/8 border border-blue-500/20 rounded-lg p-3 text-xs">
-              <p className="font-semibold text-blue-400 mb-1">Pre-Storm Preparation</p>
-              <p className="text-slate-400">AI recommends charging battery to ≥85% SOC before Sept 18 blizzard. Current plan achieves 68% by that time.</p>
             </div>
-            <div className="bg-slate-900/50 border border-slate-800/40 rounded-lg p-3 text-xs">
-              <p className="font-semibold text-slate-300 mb-1">Reserve Target</p>
-              <p className="text-slate-400">Maintain minimum 35% SOC (7.0 MWh) for critical load coverage during extended generator outage.</p>
+            <div>
+              <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider mb-2">Operational Metrics</p>
+              <div className="space-y-0">
+                <DataRow label="Current power" value={`${battery.currentPowerMW.toFixed(2)} MW`} />
+                <DataRow label="Mode" value={battery.mode} mono={false} />
+                <DataRow label="Estimated runtime" value={`${battery.estimatedRuntimeHours.toFixed(0)}h`} />
+                <DataRow label="Available energy" value={`${battery.availableEnergyMWh.toFixed(1)} MWh`} />
+              </div>
             </div>
           </div>
-        </Card>
+        )}
       </div>
     </div>
   );

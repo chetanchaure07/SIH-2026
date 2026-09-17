@@ -24,18 +24,17 @@ export default function GenerationPage() {
     <div className="p-5 space-y-5 max-w-[1200px]">
       <div>
         <h1 className="text-lg font-bold text-slate-100">Energy Generation</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Real-time generation from all sources</p>
+        <p className="text-xs text-slate-500 mt-0.5">Current output from all energy sources</p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KPICard title="Total Generation" value={snap ? snap.totalGenerationMW.toFixed(2) : '—'} unit="MW" icon={<Zap size={16} />} />
-        <KPICard title="Solar PV" value={snap ? snap.solarGenerationMW.toFixed(2) : '—'} unit="MW" />
-        <KPICard title="Wind Turbine" value={snap ? snap.windGenerationMW.toFixed(2) : '—'} unit="MW" />
-        <KPICard title="Generator" value={snap ? snap.generatorOutputMW.toFixed(2) : '—'} unit="MW" />
-        <KPICard title="Battery Discharge" value={snap ? Math.max(0, -snap.batteryOutputMW).toFixed(2) : '—'} unit="MW" />
-        <KPICard title="Renewable Share" value={renewPct.toFixed(1)} unit="%" subtitle="% of total load" />
-        <KPICard title="Total Load" value={snap ? snap.totalLoadMW.toFixed(2) : '—'} unit="MW" />
-        <KPICard title="Power Balance" value={snap ? snap.powerBalance.toFixed(2) : '—'} unit="MW" status={snap && snap.powerBalance < -0.1 ? 'WARNING' : 'NORMAL'} />
+        <KPICard title="Total Generation" value={snap ? snap.totalGenerationMW.toFixed(2) : '—'} unit="MW" icon={<Zap size={16} />} subtitle="Combined output from all sources" />
+        <KPICard title="Solar Generation" value={snap ? snap.solarGenerationMW.toFixed(2) : '—'} unit="MW" subtitle="From solar panels" />
+        <KPICard title="Wind Generation" value={snap ? snap.windGenerationMW.toFixed(2) : '—'} unit="MW" subtitle="From wind turbines" />
+        <KPICard title="Diesel Generator" value={snap ? snap.generatorOutputMW.toFixed(2) : '—'} unit="MW" subtitle="Backup generator output" />
+        <KPICard title="Renewable Share" value={renewPct.toFixed(1)} unit="%" subtitle="Portion from solar + wind" />
+        <KPICard title="Total Station Load" value={snap ? snap.totalLoadMW.toFixed(2) : '—'} unit="MW" subtitle="Current consumption" />
+        <KPICard title="Power Balance" value={snap ? snap.powerBalance.toFixed(2) : '—'} unit="MW" status={snap && snap.powerBalance < -0.1 ? 'WARNING' : 'NORMAL'} subtitle={snap && snap.powerBalance >= 0 ? 'Surplus available' : 'Drawing from storage'} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
