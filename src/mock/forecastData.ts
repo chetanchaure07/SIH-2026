@@ -1,7 +1,8 @@
 import { addHours, addMinutes } from 'date-fns';
 import type { ForecastSummary, ForecastDataPoint } from '@/types';
 
-const BASE_TIME = new Date('2026-09-16T05:00:00Z');
+// Dynamic base time — always relative to now so timestamps stay current
+const BASE_TIME = new Date();
 
 function makeForecastPoints(
   horizonHours: number,
