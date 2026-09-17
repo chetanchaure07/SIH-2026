@@ -45,7 +45,7 @@ function LoadGroupCard({ group }: { group: LoadGroup }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Badge variant={priorityBadgeVariant[group.priority]}>{group.priority.replace('_', ' ')}</Badge>
+            <Badge variant={priorityBadgeVariant[group.priority]}>{group.priority === 'NON_CRITICAL' ? 'Non-Essential' : group.priority.replace('_', ' ')}</Badge>
             {expanded ? <ChevronUp size={14} className="text-slate-600" /> : <ChevronDown size={14} className="text-slate-600" />}
           </div>
         </div>
@@ -115,8 +115,8 @@ export default function LoadsPage() {
   return (
     <div className="p-5 space-y-5 max-w-[1200px]">
       <div>
-        <h1 className="text-lg font-bold text-slate-100">Load Management</h1>
-        <p className="text-xs text-slate-500 mt-0.5">Station power consumption by priority category</p>
+        <h1 className="text-lg font-bold text-slate-100">Power Consumption</h1>
+        <p className="text-xs text-slate-500 mt-0.5">Station power usage by priority category</p>
       </div>
 
       {/* Summary */}

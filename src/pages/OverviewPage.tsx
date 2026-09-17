@@ -1,8 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Zap, Battery, Fuel, Wind, Sun, Gauge, AlertTriangle,
-  ArrowRight, Brain, TrendingUp, BarChart2, Shield
+  Zap, Battery, Fuel, Wind, Sun, AlertTriangle,
+  ArrowRight, Brain, BarChart2, CheckCircle2,
+  Thermometer, ChevronDown, ChevronUp, Heart, Radio, Monitor
 } from 'lucide-react';
 import {
   useEnergySnapshot, useFuelData, useBatteryData, useLoadGroups,
@@ -10,39 +11,122 @@ import {
 } from '@/hooks';
 import { useAIStore } from '@/stores/aiStore';
 import { useAlertStore } from '@/stores/alertStore';
-import { KPICard } from '@/components/ui/KPICard';
 import { Card, CardHeader } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge, SeverityBadge, StatusBadge } from '@/components/ui/Badge';
-import { ProgressBar, Skeleton, KPISkeleton, DataRow } from '@/components/ui';
+import { ProgressBar, Skeleton, KPISkeleton } from '@/components/ui';
 import { EnergyFlowDiagram } from '@/components/common/EnergyFlowDiagram';
-import { RenewableChart, EnergyDonutChart, LoadDistributionChart } from '@/charts';
+import { RenewableChart, EnergyDonutChart } from '@/charts';
 import {
   formatMW, formatFuelRuntime, formatPct, fuelRuntime,
   renewableContribution, energySecurityScore, riskLevel
 } from '@/utils/calculations';
 
-function RiskCard({ title, risk, description }: { title: string; risk: 'NORMAL' | 'WATCH' | 'WARNING' | 'CRITICAL'; description: string }) {
-  const colors: Record<string, string> = {
-    NORMAL: 'text-emerald-400 border-emerald-500/20 bg-emerald-500/8',
-    WATCH: 'text-blue-400 border-blue-500/25 bg-blue-500/8',
-    WARNING: 'text-amber-400 border-amber-500/25 bg-amber-500/10',
-    CRITICAL: 'text-red-400 border-red-500/30 bg-red-500/12',
+// Simple hero stat card
+function HeroCard({
+  label,
+  value,
+  unit,
+  sub,
+  status,
+  icon,
+  to,
+}: {
+  label: string;
+  value: React.ReactNode;
+  unit?: string;
+  sub?: string;
+  status?: 'NORMAL' | 'WATCH' | 'WARNING' | 'CRITICAL';
+  icon: React.ReactNode;
+  to?: string;
+}) {
+  const statusColor: Record<string, string> = {
+    NORMAL: 'text-emerald-400',
+    WATCH: 'text-blue-400',
+    WARNING: 'text-amber-400',
+    CRITICAL: 'text-red-400',
   };
-  return (
-    <div className={`border rounded-xl p-3 flex flex-col gap-1.5 ${colors[risk]}`}>
+  const borderColor: Record<string, string> = {
+    NORMAL: 'border-emerald-500/20',
+    WATCH: 'border-blue-500/20',
+    WARNING: 'border-amber-500/25',
+    CRITICAL: 'border-red-500/30',
+  };
+
+  const inner = (
+    <div
+      className={`bg-[#041219] border rounded-xl p-4 flex flex-col gap-2 transition-all hover:scale-[1.01] hover:shadow-lg ${
+        status ? borderColor[status] : 'border-slate-800/60'
+      }`}
+    >
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-slate-200">{title}</span>
-        <StatusBadge status={risk} />
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">
+          {label}
+        </span>
+        <span className={status ? statusColor[status] : 'text-cyan-400'}>
+          {icon}
+        </span>
       </div>
-      <p className="text-xs text-slate-500 leading-relaxed">{description}</p>
+      <div className="flex items-baseline gap-1.5">
+        <span className={`text-2xl font-bold font-mono ${status ? statusColor[status] : 'text-slate-100'}`}>
+          {value}
+        </span>
+        {unit && <span className="text-sm text-slate-500">{unit}</span>}
+      </div>
+      {sub && <p className="text-xs text-slate-500 leading-tight">{sub}</p>}
+    </div>
+  );
+
+  return to ? <Link to={to}>{inner}</Link> : inner;
+}
+
+// Plain-English weather insight row
+function WeatherInsight({ icon, text, color }: { icon: React.ReactNode; text: string; color: string }) {
+  return (
+    <div className={`flex items-start gap-2.5 rounded-lg px-3 py-2.5 ${color}`}>
+      <span className="shrink-0 mt-0.5">{icon}</span>
+      <p className="text-xs leading-relaxed">{text}</p>
+    </div>
+  );
+}
+
+// Simplified load priority card
+function LoadPriorityCard({
+  label,
+  mw,
+  pct,
+  color,
+  icon,
+  badgeVariant,
+}: {
+  label: string;
+  mw: number;
+  pct: number;
+  color: 'red' | 'amber' | 'cyan';
+  icon: React.ReactNode;
+  badgeVariant: 'danger' | 'warning' | 'muted';
+}) {
+  return (
+    <div className="bg-[#041219] border border-slate-800/60 rounded-xl p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {icon}
+          <span className="text-xs font-semibold text-slate-200">{label}</span>
+        </div>
+        <Badge variant={badgeVariant} size="sm">{formatPct(pct)}</Badge>
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-bold font-mono text-slate-100">{mw.toFixed(2)}</span>
+        <span className="text-xs text-slate-500">MW</span>
+      </div>
+      <ProgressBar value={pct} color={color} size="xs" showValue={false} />
     </div>
   );
 }
 
 export default function OverviewPage() {
   const { data: energy, loading: eLoading } = useEnergySnapshot();
-  const { data: fuel, loading: fLoading } = useFuelData();
+  const { data: fuel } = useFuelData();
   const { data: battery, loading: bLoading } = useBatteryData();
   const { data: loads } = useLoadGroups();
   const { data: weather } = useWeatherData();
@@ -77,23 +161,28 @@ export default function OverviewPage() {
   }, [fuel, battery, renewPct]);
 
   const batteryStatus = useMemo(() => {
-    if (!battery) return 'NORMAL';
+    if (!battery) return 'NORMAL' as const;
     return riskLevel(battery.socPercent, 40, 25, 15, true);
   }, [battery]);
 
   const fuelStatus = useMemo(() => {
-    if (!fuel) return 'NORMAL';
+    if (!fuel) return 'NORMAL' as const;
     return riskLevel(fuel.levelPercent, 40, 25, 10, true);
   }, [fuel]);
 
-  const loadData = useMemo(() => {
-    if (!loads) return [];
-    return loads.map((g) => ({
-      name: g.name,
-      value: g.currentMW,
-      color: g.priority === 'CRITICAL' ? '#ef4444' : g.priority === 'ESSENTIAL' ? '#f59e0b' : '#64748b',
-    }));
-  }, [loads]);
+  const overallStatus = useMemo((): 'NORMAL' | 'WATCH' | 'WARNING' | 'CRITICAL' => {
+    if (securityScore < 50) return 'CRITICAL';
+    if (securityScore < 65) return 'WARNING';
+    if (securityScore < 80) return 'WATCH';
+    return 'NORMAL';
+  }, [securityScore]);
+
+  const overallStatusLabel: Record<string, string> = {
+    NORMAL: 'All Systems Normal',
+    WATCH: 'Monitor Closely',
+    WARNING: 'Attention Required',
+    CRITICAL: 'Action Required',
+  };
 
   const generationMix = useMemo(() => {
     if (!energy) return [];
@@ -105,13 +194,81 @@ export default function OverviewPage() {
     ].filter((d) => d.value > 0);
   }, [energy]);
 
+  // Weather plain-English insights
+  const weatherInsights = useMemo(() => {
+    if (!weather) return [];
+    const insights: { icon: React.ReactNode; text: string; color: string }[] = [];
+
+    if (weather.temperatureCelsius < -15) {
+      insights.push({
+        icon: <Thermometer size={14} className="text-blue-300" />,
+        text: `Very cold (${weather.temperatureCelsius.toFixed(1)}°C) — heating demand is significantly elevated`,
+        color: 'bg-blue-500/8 border border-blue-500/20 text-blue-300',
+      });
+    } else if (weather.temperatureCelsius < -5) {
+      insights.push({
+        icon: <Thermometer size={14} className="text-blue-300" />,
+        text: `Cold conditions (${weather.temperatureCelsius.toFixed(1)}°C) — expect increased heating load`,
+        color: 'bg-blue-500/8 border border-blue-500/20 text-blue-300',
+      });
+    } else {
+      insights.push({
+        icon: <Thermometer size={14} className="text-emerald-400" />,
+        text: `Temperature is ${weather.temperatureCelsius.toFixed(1)}°C — heating demand is normal`,
+        color: 'bg-emerald-500/8 border border-emerald-500/20 text-emerald-400',
+      });
+    }
+
+    if (weather.windSpeedMs > 10) {
+      insights.push({
+        icon: <Wind size={14} className="text-emerald-400" />,
+        text: `Strong wind (${weather.windSpeedMs.toFixed(1)} m/s) — wind generation is favorable`,
+        color: 'bg-emerald-500/8 border border-emerald-500/20 text-emerald-400',
+      });
+    } else if (weather.windSpeedMs > 5) {
+      insights.push({
+        icon: <Wind size={14} className="text-slate-400" />,
+        text: `Moderate wind (${weather.windSpeedMs.toFixed(1)} m/s) — wind generation is adequate`,
+        color: 'bg-slate-800/50 border border-slate-700/40 text-slate-400',
+      });
+    } else {
+      insights.push({
+        icon: <Wind size={14} className="text-amber-400" />,
+        text: `Low wind (${weather.windSpeedMs.toFixed(1)} m/s) — wind generation may be limited`,
+        color: 'bg-amber-500/8 border border-amber-500/20 text-amber-400',
+      });
+    }
+
+    if (weather.cloudCoverPercent > 70) {
+      insights.push({
+        icon: <Sun size={14} className="text-amber-400" />,
+        text: `High cloud cover (${weather.cloudCoverPercent}%) — solar generation is reduced`,
+        color: 'bg-amber-500/8 border border-amber-500/20 text-amber-400',
+      });
+    } else if (weather.cloudCoverPercent > 30) {
+      insights.push({
+        icon: <Sun size={14} className="text-amber-300" />,
+        text: `Partial cloud cover (${weather.cloudCoverPercent}%) — solar generation is moderate`,
+        color: 'bg-slate-800/50 border border-slate-700/40 text-slate-300',
+      });
+    } else {
+      insights.push({
+        icon: <Sun size={14} className="text-amber-400" />,
+        text: `Clear conditions (${weather.cloudCoverPercent}% cloud cover) — good solar potential`,
+        color: 'bg-amber-500/8 border border-amber-500/20 text-amber-400',
+      });
+    }
+
+    return insights;
+  }, [weather]);
+
   return (
-    <div className="p-5 space-y-5 max-w-[1600px]">
+    <div className="p-5 space-y-6 max-w-[1600px]">
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-slate-100">Command Center</h1>
-          <p className="text-xs text-slate-500 mt-0.5">Polar Research Station Alpha — Operational Overview</p>
+          <h1 className="text-lg font-bold text-slate-100">Energy Dashboard</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Polar Research Station Alpha — System Overview</p>
         </div>
         <div className="flex items-center gap-2">
           {criticalAlerts > 0 && (
@@ -123,76 +280,75 @@ export default function OverviewPage() {
           )}
           <Link to="/ai">
             <Button variant="outline" size="sm" icon={<Brain size={13} />}>
-              {pendingRecs.length} AI Recommendation{pendingRecs.length !== 1 ? 's' : ''}
+              {pendingRecs.length} AI Suggestion{pendingRecs.length !== 1 ? 's' : ''}
             </Button>
           </Link>
         </div>
       </div>
 
-      {/* KPI Row */}
+      {/* ── Row 1: Hero Cards ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {eLoading ? (
           Array.from({ length: 6 }).map((_, i) => <KPISkeleton key={i} />)
-        ) : energy ? (
+        ) : (
           <>
-            <KPICard
-              title="Current Load"
-              value={energy.totalLoadMW.toFixed(2)}
+            <HeroCard
+              label="Energy Produced"
+              value={energy ? energy.totalGenerationMW.toFixed(2) : '—'}
               unit="MW"
-              subtitle={`${formatPct(renewPct)} renewable`}
-              trend={7.2}
-              trendLabel="vs prev hour"
+              sub={`${formatPct(renewPct)} from renewables`}
               icon={<Zap size={16} />}
+              to="/generation"
             />
-            <KPICard
-              title="Generation"
-              value={energy.totalGenerationMW.toFixed(2)}
+            <HeroCard
+              label="Energy Used"
+              value={energy ? energy.totalLoadMW.toFixed(2) : '—'}
               unit="MW"
-              subtitle={`Balance: ${energy.powerBalance > 0 ? '+' : ''}${energy.powerBalance.toFixed(2)} MW`}
-              icon={<Gauge size={16} />}
-              status={energy.powerBalance < -0.1 ? 'WARNING' : 'NORMAL'}
+              sub="Station total consumption"
+              icon={<BarChart2 size={16} />}
+              to="/loads"
             />
-            <KPICard
-              title="Renewable"
-              value={energy.renewableGenerationMW.toFixed(2)}
-              unit="MW"
-              subtitle={`${formatPct(renewPct)} of load`}
-              icon={<Wind size={16} />}
-            />
-            <KPICard
-              title="Battery SOC"
-              value={battery ? battery.socPercent.toFixed(1) : '—'}
+            <HeroCard
+              label="Battery Level"
+              value={battery ? battery.socPercent.toFixed(0) : '—'}
               unit="%"
-              subtitle={battery ? `≈ ${battery.availableEnergyMWh.toFixed(1)} MWh available` : ''}
+              sub={battery ? `${battery.availableEnergyMWh.toFixed(1)} MWh stored · ${battery.mode}` : ''}
               status={batteryStatus}
-              statusLabel={battery?.mode}
               icon={<Battery size={16} />}
+              to="/battery"
             />
-            <KPICard
-              title="Fuel Reserve"
-              value={fuel ? fuel.levelPercent.toFixed(1) : '—'}
+            <HeroCard
+              label="System Status"
+              value={overallStatusLabel[overallStatus]}
+              status={overallStatus}
+              sub={`Security score: ${securityScore}/100`}
+              icon={<CheckCircle2 size={16} />}
+            />
+            <HeroCard
+              label="AI Suggestions"
+              value={pendingRecs.length}
+              sub={pendingRecs.length > 0 ? pendingRecs[0].title.slice(0, 40) + '…' : 'No pending actions'}
+              icon={<Brain size={16} />}
+              to="/ai"
+            />
+            <HeroCard
+              label="Backup Fuel"
+              value={fuel ? fuel.levelPercent.toFixed(0) : '—'}
               unit="%"
-              subtitle={fuel ? `Runtime: ${formatFuelRuntime(fuelRuntimeHours)}` : ''}
+              sub={fuel ? `~${formatFuelRuntime(fuelRuntimeHours)} remaining` : ''}
               status={fuelStatus}
               icon={<Fuel size={16} />}
-            />
-            <KPICard
-              title="Security Score"
-              value={securityScore}
-              unit="/100"
-              subtitle="Energy security index"
-              status={securityScore < 50 ? 'CRITICAL' : securityScore < 65 ? 'WARNING' : securityScore < 80 ? 'WATCH' : 'NORMAL'}
-              icon={<Shield size={16} />}
+              to="/fuel"
             />
           </>
-        ) : null}
+        )}
       </div>
 
-      {/* Main grid */}
+      {/* ── Row 2: Energy Flow + Renewable Forecast ── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Energy Flow */}
         <Card className="lg:col-span-1">
-          <CardHeader title="Energy Flow" icon={<Zap size={15} />} />
+          <CardHeader title="Energy Flow" subtitle="Where power is coming from and going to" icon={<Zap size={15} />} />
           {energy ? (
             <EnergyFlowDiagram
               solar={energy.solarGenerationMW}
@@ -210,8 +366,8 @@ export default function OverviewPage() {
         {/* Renewable Forecast */}
         <Card className="lg:col-span-2">
           <CardHeader
-            title="Renewable Generation Forecast"
-            subtitle="Solar + Wind — next 24 hours"
+            title="Renewable Generation — Next 24 Hours"
+            subtitle="Forecast solar and wind output"
             icon={<Sun size={15} />}
             actions={
               <Link to="/renewables" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
@@ -239,42 +395,47 @@ export default function OverviewPage() {
         </Card>
       </div>
 
-      {/* Risk + AI + Alerts */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {/* Energy Risks */}
-        <Card>
-          <CardHeader title="Energy Risks" icon={<AlertTriangle size={15} />} />
-          <div className="space-y-2">
-            <RiskCard title="Fuel Supply" risk={fuelStatus} description={fuel ? `${formatPct(fuel.levelPercent)} remaining, ${formatFuelRuntime(fuelRuntimeHours)} runtime` : 'Loading...'} />
-            <RiskCard title="Battery Reserve" risk={batteryStatus} description={battery ? `SOC: ${battery.socPercent.toFixed(1)}%, SOH: ${battery.sohPercent.toFixed(1)}%` : 'Loading...'} />
-            <RiskCard title="Weather" risk={weather?.energyImpact.overallRiskLevel ?? 'NORMAL'} description={weather ? weather.energyImpact.description.slice(0, 80) + '...' : 'Loading...'} />
-            <RiskCard title="Generator" risk="WATCH" description="G-03 maintenance overdue. G-01 and G-02 nominal." />
-          </div>
-        </Card>
-
+      {/* ── Row 3: Generation Mix + AI Recommendations + Alerts ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {/* Generation Mix */}
         <Card>
-          <CardHeader title="Generation Mix" icon={<BarChart2 size={15} />} />
-          <div className="flex items-center gap-4">
-            <EnergyDonutChart data={generationMix} size={140} />
-            <div className="flex flex-col gap-2 text-xs flex-1">
-              {generationMix.map((g) => (
-                <div key={g.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} aria-hidden="true" />
-                    <span className="text-slate-400">{g.name}</span>
+          <CardHeader
+            title="Generation Mix"
+            subtitle="Current output by source"
+            icon={<BarChart2 size={15} />}
+            actions={
+              <Link to="/generation" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
+                Details <ArrowRight size={12} />
+              </Link>
+            }
+          />
+          {energy ? (
+            <div className="flex items-center gap-4">
+              <EnergyDonutChart data={generationMix} size={140} />
+              <div className="flex flex-col gap-2.5 text-xs flex-1">
+                {generationMix.map((g) => (
+                  <div key={g.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.color }} aria-hidden="true" />
+                      <span className="text-slate-400">{g.name}</span>
+                    </div>
+                    <span className="font-mono text-slate-200">{formatMW(g.value)}</span>
                   </div>
-                  <span className="font-mono text-slate-200">{formatMW(g.value)}</span>
+                ))}
+                <div className="mt-1 pt-2 border-t border-slate-800/50 flex justify-between text-slate-500">
+                  <span>Renewables</span>
+                  <span className="font-mono text-emerald-400">{formatPct(renewPct)}</span>
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
+          ) : <Skeleton className="h-40 rounded-xl" />}
         </Card>
 
         {/* AI Recommendations */}
         <Card>
           <CardHeader
             title="AI Recommendations"
+            subtitle="System suggestions requiring your review"
             icon={<Brain size={15} />}
             actions={
               <Link to="/ai" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
@@ -284,29 +445,33 @@ export default function OverviewPage() {
           />
           <div className="space-y-2">
             {pendingRecs.slice(0, 3).map((rec) => (
-              <div key={rec.id} className="border border-slate-800/50 rounded-lg p-2.5 space-y-1.5">
+              <div key={rec.id} className="border border-slate-800/50 rounded-lg p-3 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Badge variant={rec.priority === 'HIGH' ? 'danger' : rec.priority === 'MEDIUM' ? 'warning' : 'info'} size="sm">
-                    {rec.priority}
+                    {rec.priority === 'HIGH' ? 'Urgent' : rec.priority === 'MEDIUM' ? 'Recommended' : 'Optional'}
                   </Badge>
-                  <span className="text-[10px] text-slate-600">{rec.confidence}% conf.</span>
+                  <span className="text-[10px] text-slate-600">{rec.confidence}% confidence</span>
                 </div>
-                <p className="text-xs text-slate-300 leading-tight truncate-lines-2">{rec.title}</p>
+                <p className="text-xs text-slate-300 leading-snug">{rec.title}</p>
                 <Link to="/ai">
                   <button className="text-[10px] text-cyan-500 hover:text-cyan-400">Review →</button>
                 </Link>
               </div>
             ))}
             {pendingRecs.length === 0 && (
-              <p className="text-xs text-slate-600 text-center py-4">No pending recommendations</p>
+              <div className="text-center py-6">
+                <CheckCircle2 size={28} className="text-emerald-500/40 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No pending recommendations</p>
+              </div>
             )}
           </div>
         </Card>
 
-        {/* Recent Alerts */}
+        {/* Active Alerts */}
         <Card>
           <CardHeader
             title="Active Alerts"
+            subtitle="Issues that need attention"
             icon={<AlertTriangle size={15} />}
             actions={
               <Link to="/alerts" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
@@ -316,71 +481,118 @@ export default function OverviewPage() {
           />
           <div className="space-y-2">
             {recentAlerts.map((alert) => (
-              <div key={alert.id} className="border border-slate-800/50 rounded-lg p-2.5 space-y-1">
+              <div key={alert.id} className="border border-slate-800/50 rounded-lg p-3 space-y-1.5">
                 <div className="flex items-start justify-between gap-2">
                   <SeverityBadge severity={alert.severity} />
-                  <span className="text-[10px] text-slate-600 shrink-0">{alert.category}</span>
+                  <span className="text-[10px] text-slate-600 shrink-0 capitalize">{alert.category.toLowerCase()}</span>
                 </div>
-                <p className="text-xs text-slate-300 leading-tight truncate-lines-2">{alert.title}</p>
+                <p className="text-xs text-slate-300 leading-snug">{alert.title}</p>
               </div>
             ))}
             {recentAlerts.length === 0 && (
-              <p className="text-xs text-slate-500 text-center py-4">No active alerts</p>
+              <div className="text-center py-6">
+                <CheckCircle2 size={28} className="text-emerald-500/40 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No active alerts</p>
+              </div>
             )}
           </div>
         </Card>
       </div>
 
-      {/* Load Distribution */}
+      {/* ── Row 4: Power Consumption + Weather ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Load Priority Cards */}
         <Card>
-          <CardHeader title="Load Distribution" subtitle="Current consumption by group" icon={<BarChart2 size={15} />} />
-          {loadData.length > 0 ? (
-            <div className="space-y-3">
-              <LoadDistributionChart data={loadData} height={140} />
-              <div className="space-y-1">
-                {loads?.map((g) => (
-                  <div key={g.id} className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: g.priority === 'CRITICAL' ? '#ef4444' : g.priority === 'ESSENTIAL' ? '#f59e0b' : '#64748b' }} aria-hidden="true" />
-                    <span className="text-xs text-slate-400 flex-1">{g.name}</span>
-                    <span className="text-xs font-mono text-slate-200">{formatMW(g.currentMW)}</span>
-                    <span className="text-xs text-slate-600">({formatPct(g.percentOfTotal)})</span>
-                  </div>
-                ))}
-              </div>
+          <CardHeader
+            title="Power Consumption by Priority"
+            subtitle="Station loads grouped by importance"
+            icon={<BarChart2 size={15} />}
+            actions={
+              <Link to="/loads" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
+                Details <ArrowRight size={12} />
+              </Link>
+            }
+          />
+          {loads && loads.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3">
+              {loads.map((g) => {
+                const colorMap: Record<string, 'red' | 'amber' | 'cyan'> = {
+                  CRITICAL: 'red', ESSENTIAL: 'amber', NON_CRITICAL: 'cyan',
+                };
+                const badgeMap: Record<string, 'danger' | 'warning' | 'muted'> = {
+                  CRITICAL: 'danger', ESSENTIAL: 'warning', NON_CRITICAL: 'muted',
+                };
+                const iconMap: Record<string, React.ReactNode> = {
+                  CRITICAL: <Heart size={13} className="text-red-400" />,
+                  ESSENTIAL: <Radio size={13} className="text-amber-400" />,
+                  NON_CRITICAL: <Monitor size={13} className="text-slate-400" />,
+                };
+                const displayLabel: Record<string, string> = {
+                  CRITICAL: 'Critical Loads',
+                  ESSENTIAL: 'Essential Loads',
+                  NON_CRITICAL: 'Non-Essential Loads',
+                };
+                return (
+                  <LoadPriorityCard
+                    key={g.id}
+                    label={displayLabel[g.priority] ?? g.name}
+                    mw={g.currentMW}
+                    pct={g.percentOfTotal}
+                    color={colorMap[g.priority] ?? 'cyan'}
+                    icon={iconMap[g.priority]}
+                    badgeVariant={badgeMap[g.priority] ?? 'muted'}
+                  />
+                );
+              })}
             </div>
           ) : <Skeleton className="h-40 rounded-xl" />}
         </Card>
 
-        {/* Weather Impact */}
+        {/* Weather — Plain-English */}
         <Card>
-          <CardHeader title="Weather Impact" subtitle="Current environmental conditions" icon={<Wind size={15} />} actions={
-            <Link to="/weather" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
-              Details <ArrowRight size={12} />
-            </Link>
-          } />
+          <CardHeader
+            title="Weather Conditions"
+            subtitle="How today's weather affects energy"
+            icon={<Wind size={15} />}
+            actions={
+              <Link to="/weather" className="text-xs text-cyan-500 hover:text-cyan-400 flex items-center gap-1">
+                Details <ArrowRight size={12} />
+              </Link>
+            }
+          />
           {weather ? (
             <div className="space-y-3">
+              {/* Quick summary row */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-slate-900/50 border border-slate-800/40 rounded-lg p-3">
-                  <p className="text-xs text-slate-500">Temperature</p>
-                  <p className="text-lg font-bold font-mono text-slate-100 mt-0.5">{weather.temperatureCelsius.toFixed(1)}°C</p>
+                  <p className="text-[11px] text-slate-500 mb-1">Temperature</p>
+                  <p className="text-xl font-bold font-mono text-slate-100">{weather.temperatureCelsius.toFixed(1)}°C</p>
                   <p className="text-[11px] text-slate-600">Feels {weather.feelsLikeCelsius.toFixed(1)}°C</p>
                 </div>
                 <div className="bg-slate-900/50 border border-slate-800/40 rounded-lg p-3">
-                  <p className="text-xs text-slate-500">Wind</p>
-                  <p className="text-lg font-bold font-mono text-slate-100 mt-0.5">{weather.windSpeedMs.toFixed(1)} m/s</p>
+                  <p className="text-[11px] text-slate-500 mb-1">Wind Speed</p>
+                  <p className="text-xl font-bold font-mono text-slate-100">{weather.windSpeedMs.toFixed(1)} m/s</p>
                   <p className="text-[11px] text-slate-600">Gusts {weather.windGustMs.toFixed(1)} m/s</p>
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <DataRow label="Solar irradiance" value={weather.solarIrradianceWm2} unit="W/m²" />
-                <DataRow label="Cloud cover" value={`${weather.cloudCoverPercent}%`} unit="" />
-                <DataRow label="Solar impact" value={`${weather.energyImpact.solarGenerationImpactPct > 0 ? '+' : ''}${weather.energyImpact.solarGenerationImpactPct}%`} unit="" />
-                <DataRow label="Wind gen. impact" value={`+${weather.energyImpact.windGenerationImpactPct}%`} unit="" />
+
+              {/* Plain-English insights */}
+              <div className="space-y-2">
+                {weatherInsights.map((insight, i) => (
+                  <WeatherInsight key={i} {...insight} />
+                ))}
               </div>
-              <div className={`rounded-lg px-3 py-2 text-xs ${weather.energyImpact.overallRiskLevel === 'NORMAL' ? 'bg-emerald-500/8 border border-emerald-500/20 text-emerald-400' : 'bg-amber-500/10 border border-amber-500/25 text-amber-400'}`}>
-                {weather.energyImpact.description.slice(0, 120)}...
+
+              {/* Overall risk */}
+              <div className={`rounded-lg px-3 py-2 text-xs ${
+                weather.energyImpact.overallRiskLevel === 'NORMAL'
+                  ? 'bg-emerald-500/8 border border-emerald-500/20 text-emerald-400'
+                  : weather.energyImpact.overallRiskLevel === 'WARNING'
+                  ? 'bg-amber-500/10 border border-amber-500/25 text-amber-400'
+                  : 'bg-blue-500/8 border border-blue-500/20 text-blue-400'
+              }`}>
+                <span className="font-semibold">Weather impact: {weather.energyImpact.overallRiskLevel}</span>
+                <span className="text-slate-500 ml-2">— {weather.energyImpact.description.slice(0, 100)}</span>
               </div>
             </div>
           ) : <Skeleton className="h-48 rounded-xl" />}
